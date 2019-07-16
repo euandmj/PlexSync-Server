@@ -73,6 +73,7 @@ def autoUpdater():
 
 # a crude way of finding most appropriate directory.
 def getAppropriateFilePath(torrent):
+    import difflib
     def getSeasonSubDir(torrentName, path, dir):
         # usual syntax is SXXEXX
         # group1- name
@@ -105,12 +106,18 @@ def getAppropriateFilePath(torrent):
     #fname = torrent["name"].replace('.', ' ')
 
     # for up to s01e02 regex
-    for i, st in enumerate(torrent['name'].split(',')):
-        pass
-        # presume name is up to this point, compare torrent 'name'
-        # with folder name
+    if '.' in torrent['name']:
+        t_name_split = torrent['name'].split('.')
+    elif ' ' in torrent['name']:
+        t_name_split = torrent['name'].split(' ')
 
 
+    for i, st in enumerate(t_name_split):
+        if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) \
+            or st.lower() in "season":
+            # presume name is up to this point, compare torrent 'name'
+            # with folder name
+            media_name = ' '.join(t_name_split[:i])
     
     # for each directorry, analyze the subdirectories to find the most fitting match.
     try:
@@ -120,7 +127,10 @@ def getAppropriateFilePath(torrent):
 
             for d in dirs:
                 # if the directory contains a part of the name, assume a fit match
-                if d in fname:
+                # if d in media_name:
+                # -- new --
+                # if the ratio is acceptable
+                if difflib.SequenceMatcher(None, a=media_name, b=d).ratio() >= 0.77:
                     # if the dir is tv or anime; we should try to find the right season folder
                     if path == top_paths[0] or path == top_paths[2]:
                         tv_dir = getSeasonSubDir(torrent["name"], path + "\\" + d, d)
@@ -129,6 +139,8 @@ def getAppropriateFilePath(torrent):
                     # if the dir is documentaries or movies we can just plonk into root
                     return path + "\\" + d
 
+        return DEFAULT_FILE_PATH
+    except NameError:
         return DEFAULT_FILE_PATH
     except Exception as e:
         print(e)
@@ -144,6 +156,7 @@ def downloadTorrent(uri, client):
     client.download_from_link(uri, savepath=hard_coded_save_path)
 
     log.log("TORRENT ADDED: %s" % uri)
+
 
     t = next((x for x in client.torrents() if x["magnet_uri"].lower() == uri.lower()), None)
 

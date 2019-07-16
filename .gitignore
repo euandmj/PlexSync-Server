@@ -1,1 +1,10 @@
 qbittorrent.exe - Shortcut.lnk
+.vscode/.ropeproject/objectdb
+.vscode/.ropeproject/config.py
+.vscode/launch.json
+*.pyc
+*.lnk
+config.ini
+server_log.txt
+magnets.txt
+t.py
