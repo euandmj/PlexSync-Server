@@ -45,6 +45,13 @@ finally:
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
 
+
+def getDownloadedList():
+    # list all downloaded folders
+    paths = [f for f in os.listdir(DEFAULT_FILE_PATH) if not os.path.isfile(os.path.join(DEFAULT_FILE_PATH, f))]
+
+    return ', '.join(paths)
+
 def checkForUpdate():
     client = Client("http://127.0.0.1:8080")
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
@@ -209,10 +216,12 @@ def runServer():
                     while 1:
                         data = cnn.recv(1024)
                         if not data:
-                            break                        
+                            break
                         if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", data.decode()):
                             downloadTorrent(data.decode(), client)
                             cnn.sendall(b"sucessfully added torrent")
+                        if data.decode() == "__listdownloaded__":
+                            cnn.sendall(getDownloadedList(), encoding="utf-8")
                         else:
                             cnn.sendall(b"invalid magnet link received")
                 except Exception as e:
