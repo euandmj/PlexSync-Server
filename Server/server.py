@@ -48,9 +48,20 @@ finally:
 
 def getDownloadedList():
     # list all downloaded folders
-    paths = [f for f in os.listdir(DEFAULT_FILE_PATH) if not os.path.isfile(os.path.join(DEFAULT_FILE_PATH, f))]
+    paths = [f for f in os.listdir(DEFAULT_FILE_PATH)]# if not os.path.isfile(os.path.join(DEFAULT_FILE_PATH, f))]
 
     return ', '.join(paths)
+
+def getTorrentlist():
+    client = Client("http://127.0.0.1:8080")
+    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
+
+    torrents = []
+
+    for t in client.torrents():
+        torrents.append(t["name"] + " " + str(t["progress"]) + " " + t["state"])
+
+    return ', '.join(torrents)
 
 def checkForUpdate():
     client = Client("http://127.0.0.1:8080")
@@ -221,12 +232,17 @@ def runServer():
                             downloadTorrent(data.decode(), client)
                             cnn.sendall(b"sucessfully added torrent")
                         if data.decode() == "__listdownloaded__":
-                            cnn.sendall(getDownloadedList(), encoding="utf-8")
+                            cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
+                        if data.decode() == "__listtorrents__":
+                            cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
                         else:
                             cnn.sendall(b"invalid magnet link received")
                 except Exception as e:
+                    print(e)
                     cnn.sendall(b"an error has occurred")
                     log.log(str(e))
+                    break                    
+
 
 
 

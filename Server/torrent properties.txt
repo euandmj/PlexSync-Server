@@ -33,8 +33,6 @@
 'state':'stalledDL'
 'super_seeding':False
 'tags':''
-
-
 'ratio':0
 'ratio_limit':-2
 'save_path':'I:\\Downloads\\'
