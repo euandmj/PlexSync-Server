@@ -49,8 +49,11 @@ finally:
 def getDownloadedList():
     # list all downloaded folders
     paths = [f for f in os.listdir(DEFAULT_FILE_PATH)]# if not os.path.isfile(os.path.join(DEFAULT_FILE_PATH, f))]
-
-    return ', '.join(paths)
+    
+    if not paths:
+        return "looks like its empty..."
+    else:
+        return ','.join(paths)
 
 def getTorrentlist():
     client = Client("http://127.0.0.1:8080")
@@ -61,7 +64,10 @@ def getTorrentlist():
     for t in client.torrents():
         torrents.append(t["name"] + " " + str(t["progress"]) + " " + t["state"])
 
-    return ', '.join(torrents)
+    if not torrents:
+        return "no torrents are currently active..."
+    else:
+        return ','.join(torrents)
 
 def checkForUpdate():
     client = Client("http://127.0.0.1:8080")
@@ -205,7 +211,7 @@ def downloadTorrent(uri, client):
 
         
         # use old api in overrideFilePath()
-        overrideFilePath() 
+        overrideFilePath()
 
 def runServer():
     client = Client("http://127.0.0.1:8080")
