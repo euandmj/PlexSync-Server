@@ -1,5 +1,6 @@
 import socket
 import time
+import datetime
 import re
 import configparser
 import os
@@ -15,6 +16,7 @@ import logger
 
 
 global DEFAULT_FILE_PATH
+global initTime
 
 # load below globals via .config
 config = configparser.ConfigParser()
@@ -44,7 +46,7 @@ finally:
     myPlex = myplex.MyPlexAccount(username=config.get("Plex", "username"), password=config.get("Plex", "password"))
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
-
+    initTime = datetime.datetime.now()
 
 def getDownloadedList():
     # list all downloaded folders
@@ -55,6 +57,13 @@ def getDownloadedList():
     else:
         return ','.join(paths)
 
+def getServerTime():
+    return str(initTime)[:-7]
+
+def updateLibrary():
+    src = myPlex.resource(config.get("Plex", "server")).connect()
+    src.library.update()
+
 def getTorrentlist():
     client = Client("http://127.0.0.1:8080")
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
@@ -62,12 +71,13 @@ def getTorrentlist():
     torrents = []
 
     for t in client.torrents():
-        torrents.append(t["name"] + " " + str(t["progress"]) + " " + t["state"])
+        torrents.append(t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
 
     if not torrents:
         return "no torrents are currently active..."
     else:
-        return ','.join(torrents)
+        s = '\n'.join(torrents)
+        return s
 
 def checkForUpdate():
     client = Client("http://127.0.0.1:8080")
@@ -83,8 +93,7 @@ def checkForUpdate():
     
     print("updating library...")
 
-    src = myPlex.resource(config.get("Plex", "server")).connect()
-    src.library.update()
+    updateLibrary()
     
 
 def autoUpdater():
@@ -227,20 +236,27 @@ def runServer():
         while 1:
             cnn, addr = s.accept()
             with cnn:
-                log.log(("connection received by ", addr))
-                print("connection received by ", addr)
                 try:                    
                     while 1:
                         data = cnn.recv(1024)
+                        decoded = data.decode()
+                        print("connection received by %s: %s" % (str(addr), decoded))                        
+                        log.log("connection received by %s: %s" % (str(addr), decoded))
+
                         if not data:
                             break
-                        if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", data.decode()):
-                            downloadTorrent(data.decode(), client)
+                        if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
+                            downloadTorrent(decoded, client)
                             cnn.sendall(b"sucessfully added torrent")
-                        if data.decode() == "__listdownloaded__":
+                        if decoded == "__listdownloaded__":
                             cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
-                        if data.decode() == "__listtorrents__":
+                        if decoded == "__listtorrents__":
                             cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
+                        if decoded == "__refreshplex__":
+                            updateLibrary()
+                            cnn.sendall(bytes("updated plex library", encoding="utf-8"))
+                        if decoded == "__gettime__":
+                            cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
                         else:
                             cnn.sendall(b"invalid magnet link received")
                 except Exception as e:
