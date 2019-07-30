@@ -17,6 +17,7 @@ import logger
 
 global DEFAULT_FILE_PATH
 global initTime
+global prefixes
 
 # load below globals via .config
 config = configparser.ConfigParser()
@@ -47,6 +48,7 @@ finally:
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
     initTime = datetime.datetime.now()
+    prefixes = ["AT", "MV", "TV", "DM", "AN"]
 
 def getDownloadedList():
     # list all downloaded folders
@@ -131,6 +133,7 @@ def getAppropriateFilePath(torrent):
 
     # the directories for which folders for individual media are stored
     top_paths = [r"I:\Movies\Anime", r"I:\Movies\Documentaries", r"I:\Movies\TV", r"I:\Movies\Movies"]
+
     #fname = torrent["name"].replace('.', ' ')
 
     # for up to s01e02 regex
@@ -240,6 +243,10 @@ def runServer():
 
                         if not data:
                             break
+                        # if decoded.startswith((tuple(prefixes))) and \
+                        #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
+                        #     downloadTorrent(decoded, client, decoded[:2])
+                        #     cnn.sendall(b"sucessfully added torrent")
                         if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
                             downloadTorrent(decoded, client)
                             cnn.sendall(b"sucessfully added torrent")
@@ -264,12 +271,12 @@ def runServer():
 
 
 if __name__ == "__main__":
-    # server_process = Process(target=runServer)
-    # updater_process = Process(target=autoUpdater)
-    # server_process.start()
-    # updater_process.start()
+    server_process = Process(target=runServer)
+    updater_process = Process(target=autoUpdater)
+    server_process.start()
+    updater_process.start()
 
     # run for debugging.
-    runServer()
+    # runServer()
 
     # autoUpdater()

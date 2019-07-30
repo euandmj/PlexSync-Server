@@ -1,8 +1,3 @@
-autoguess best location for download:
-    check for name similiarities in the directories
-    default to bin
-
-load server and account config via config file
-logging to file
-
-pushback notifications?
+push notifications
+multithread server
+tap dl to view file location
