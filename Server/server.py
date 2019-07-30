@@ -52,10 +52,7 @@ def getDownloadedList():
     # list all downloaded folders
     paths = [f for f in os.listdir(DEFAULT_FILE_PATH)]# if not os.path.isfile(os.path.join(DEFAULT_FILE_PATH, f))]
     
-    if not paths:
-        return "looks like its empty..."
-    else:
-        return ','.join(paths)
+    return ','.join(paths)
 
 def getServerTime():
     return str(initTime)[:-7]
@@ -71,13 +68,11 @@ def getTorrentlist():
     torrents = []
 
     for t in client.torrents():
-        torrents.append(t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
+        torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
 
-    if not torrents:
-        return "no torrents are currently active..."
-    else:
-        s = '\n'.join(torrents)
-        return s
+    # if not torrents:
+    #     return "ree"
+    return '\n'.join(torrents)
 
 def checkForUpdate():
     client = Client("http://127.0.0.1:8080")
@@ -248,17 +243,17 @@ def runServer():
                         if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
                             downloadTorrent(decoded, client)
                             cnn.sendall(b"sucessfully added torrent")
-                        if decoded == "__listdownloaded__":
+                        elif decoded == "__listdownloaded__":
                             cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
-                        if decoded == "__listtorrents__":
+                        elif decoded == "__listtorrents__":
                             cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
-                        if decoded == "__refreshplex__":
+                        elif decoded == "__refreshplex__":
                             updateLibrary()
                             cnn.sendall(bytes("updated plex library", encoding="utf-8"))
-                        if decoded == "__gettime__":
+                        elif decoded == "__gettime__":
                             cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
                         else:
-                            cnn.sendall(b"invalid magnet link received")
+                            cnn.sendall(b"invalid request")
                 except Exception as e:
                     print(e)
                     cnn.sendall(b"an error has occurred")
@@ -269,12 +264,12 @@ def runServer():
 
 
 if __name__ == "__main__":
-    server_process = Process(target=runServer)
-    updater_process = Process(target=autoUpdater)
-    server_process.start()
-    updater_process.start()
+    # server_process = Process(target=runServer)
+    # updater_process = Process(target=autoUpdater)
+    # server_process.start()
+    # updater_process.start()
 
     # run for debugging.
-    # runServer()
+    runServer()
 
     # autoUpdater()
