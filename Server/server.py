@@ -16,6 +16,7 @@ import logger
 
 
 global DEFAULT_FILE_PATH
+global PLEX_PATH
 global initTime
 global prefixes
 
@@ -33,6 +34,7 @@ try:
             config.get("Plex", "server")
             config.get("Plex", "username")
             config.get("Plex", "password")
+            config.get("Plex", "directory")
             config.get("qBittorrent", "host")
             config.get("qBittorrent", "username")
             config.get("qBittorrent", "password")
@@ -47,6 +49,7 @@ finally:
     myPlex = myplex.MyPlexAccount(username=config.get("Plex", "username"), password=config.get("Plex", "password"))
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
+    PLEX_PATH = config.get("Plex", "directory")
     initTime = datetime.datetime.now()
     prefixes = ["AT", "MV", "TV", "DM", "AN"]
 
@@ -132,7 +135,8 @@ def getAppropriateFilePath(torrent):
             return newdir                
 
     # the directories for which folders for individual media are stored
-    top_paths = [r"I:\Movies\Anime", r"I:\Movies\Documentaries", r"I:\Movies\TV", r"I:\Movies\Movies"]
+    top_paths = [os.path.join(PLEX_PATH, f) for f in os.listdir(PLEX_PATH) if not os.path.isfile(os.path.join(PLEX_PATH, f))]
+    # [r"I:\Movies\Anime", r"I:\Movies\Documentaries", r"I:\Movies\TV", r"I:\Movies\Movies"]
 
     #fname = torrent["name"].replace('.', ' ')
 
@@ -163,12 +167,9 @@ def getAppropriateFilePath(torrent):
                 # if the ratio is acceptable
                 if difflib.SequenceMatcher(None, a=media_name, b=d).ratio() >= 0.77:
                     # if the dir is tv or anime; we should try to find the right season folder
-                    if path == top_paths[0] or path == top_paths[2]:
-                        tv_dir = getSeasonSubDir(torrent["name"], path + "\\" + d, d)
-                        return tv_dir
-
-                    # if the dir is documentaries or movies we can just plonk into root
-                    return path + "\\" + d
+                    # if path == top_paths[0] or path == top_paths[2]:
+                    tv_dir = getSeasonSubDir(torrent["name"], path + "\\" + d, d)
+                    return tv_dir
 
         return DEFAULT_FILE_PATH
     except NameError:
