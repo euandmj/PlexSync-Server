@@ -17,8 +17,8 @@ import logger
 
 global DEFAULT_FILE_PATH
 global PLEX_PATH
-global initTime
 global prefixes
+global initTime
 
 # load below globals via .config
 config = configparser.ConfigParser()
@@ -50,8 +50,8 @@ finally:
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
     PLEX_PATH = config.get("Plex", "directory")
-    initTime = datetime.datetime.now()
     prefixes = ["AT", "MV", "TV", "DM", "AN"]
+    initTime = datetime.datetime.now()
 
 def getDownloadedList():
     # list all downloaded folders
@@ -139,23 +139,23 @@ def getAppropriateFilePath(torrent):
     # [r"I:\Movies\Anime", r"I:\Movies\Documentaries", r"I:\Movies\TV", r"I:\Movies\Movies"]
 
     #fname = torrent["name"].replace('.', ' ')
-
-    # for up to s01e02 regex
-    if '.' in torrent['name']:
-        t_name_split = torrent['name'].split('.')
-    elif ' ' in torrent['name']:
-        t_name_split = torrent['name'].split(' ')
-
-
-    for i, st in enumerate(t_name_split):
-        if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) \
-            or st.lower() in "season":
-            # presume name is up to this point, compare torrent 'name'
-            # with folder name
-            media_name = ' '.join(t_name_split[:i])
-    
-    # for each directorry, analyze the subdirectories to find the most fitting match.
     try:
+        # for up to s01e02 regex
+        if '.' in torrent['name']:
+            t_name_split = torrent['name'].split('.')
+        elif ' ' in torrent['name']:
+            t_name_split = torrent['name'].split(' ')
+
+
+        for i, st in enumerate(t_name_split):
+            if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) \
+                or st.lower() in "season":
+                # presume name is up to this point, compare torrent 'name'
+                # with folder name
+                media_name = ' '.join(t_name_split[:i])
+        
+        # for each directorry, analyze the subdirectories to find the most fitting match.
+    
         for path in top_paths:
             # get all folders
             dirs = [f for f in os.listdir(path) if not os.path.isfile(os.path.join(path, f))]
@@ -175,7 +175,7 @@ def getAppropriateFilePath(torrent):
     except NameError:
         return DEFAULT_FILE_PATH
     except Exception as e:
-        print(e)
+        log.log("getAppropiateFilePath ERROR: %s - %s" % (e, torrent["name"]))
         return DEFAULT_FILE_PATH
 
 def downloadTorrent(uri, client):
@@ -221,52 +221,59 @@ def downloadTorrent(uri, client):
         # use old api in overrideFilePath()
         overrideFilePath()
 
+def acceptClient(cnn, addr):
+    pass
+
 def runServer():
     client = Client("http://127.0.0.1:8080")
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
    
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            print("listening...")
+            
+            s.bind((config.get("Server", "host"), config.getint("Server", "port")))
+            s.listen()
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        print("listening...")
-        
-        s.bind((config.get("Server", "host"), config.getint("Server", "port")))
-        s.listen()
+            while 1:
+                cnn, addr = s.accept()
+                with cnn:
+                    try:                    
+                        while 1:
+                            data = cnn.recv(1024)
+                            decoded = data.decode()
+                            print("connection received by %s: %s" % (str(addr), decoded))                        
+                            log.log("connection received by %s: %s" % (str(addr), decoded))
 
-        while 1:
-            cnn, addr = s.accept()
-            with cnn:
-                try:                    
-                    while 1:
-                        data = cnn.recv(1024)
-                        decoded = data.decode()
-                        print("connection received by %s: %s" % (str(addr), decoded))                        
-                        log.log("connection received by %s: %s" % (str(addr), decoded))
-
-                        if not data:
-                            break
-                        # if decoded.startswith((tuple(prefixes))) and \
-                        #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
-                        #     downloadTorrent(decoded, client, decoded[:2])
-                        #     cnn.sendall(b"sucessfully added torrent")
-                        if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
-                            downloadTorrent(decoded, client)
-                            cnn.sendall(b"sucessfully added torrent")
-                        elif decoded == "__listdownloaded__":
-                            cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
-                        elif decoded == "__listtorrents__":
-                            cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
-                        elif decoded == "__refreshplex__":
-                            updateLibrary()
-                            cnn.sendall(bytes("updated plex library", encoding="utf-8"))
-                        elif decoded == "__gettime__":
-                            cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
-                        else:
-                            cnn.sendall(b"invalid request")
-                except Exception as e:
-                    print(e)
-                    cnn.sendall(b"an error has occurred")
-                    log.log(str(e))
-                    break                    
+                            if not data:
+                                break
+                            # if decoded.startswith((tuple(prefixes))) and \
+                            #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
+                            #     downloadTorrent(decoded, client, decoded[:2])
+                            #     cnn.sendall(b"sucessfully added torrent")
+                            if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
+                                downloadTorrent(decoded, client)
+                                cnn.sendall(b"sucessfully added torrent")
+                            elif decoded == "__listdownloaded__":
+                                cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
+                            elif decoded == "__listtorrents__":
+                                cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
+                            elif decoded == "__refreshplex__":
+                                updateLibrary()
+                                cnn.sendall(bytes("updated plex library", encoding="utf-8"))
+                            elif decoded == "__gettime__":
+                                cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
+                            else:
+                                cnn.sendall(b"invalid request")
+                    except Exception as e:
+                        print(e)
+                        cnn.sendall(b"an error has occurred")
+                        log.log(str(e))
+                        break                    
+    except ConnectionResetError as e:
+        # occasional crash. 
+        log.log(str(e))
+        runServer()
 
 
 
@@ -281,3 +288,4 @@ if __name__ == "__main__":
     # runServer()
 
     # autoUpdater()
+

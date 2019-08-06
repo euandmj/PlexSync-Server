@@ -1,3 +1,5 @@
-push notifications
 multithread server
 tap dl to view file location
+push notifications
+have domain setup on mobile client
+
