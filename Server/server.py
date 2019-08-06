@@ -2,6 +2,7 @@ import socket
 import time
 import datetime
 import re
+import threading
 import configparser
 import os
 import sys
@@ -221,59 +222,59 @@ def downloadTorrent(uri, client):
         # use old api in overrideFilePath()
         overrideFilePath()
 
-def acceptClient(cnn, addr):
-    pass
+def acceptClient(cnn, addr, tclient):
+    with cnn:
+        try:                    
+            while 1:
+                data = cnn.recv(1024)
+                decoded = data.decode()
+                print("connection received by %s: %s" % (str(addr), decoded))                        
+                log.log("connection received by %s: %s" % (str(addr), decoded))
+
+                if not data:
+                    break
+                # if decoded.startswith((tuple(prefixes))) and \
+                #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
+                #     downloadTorrent(decoded, client, decoded[:2])
+                #     cnn.sendall(b"sucessfully added torrent")
+                if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
+                    downloadTorrent(decoded, tclient)
+                    cnn.sendall(b"sucessfully added torrent")
+                elif decoded == "__listdownloaded__":
+                    cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
+                elif decoded == "__listtorrents__":
+                    cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
+                elif decoded == "__refreshplex__":
+                    updateLibrary()
+                    cnn.sendall(bytes("updated plex library", encoding="utf-8"))
+                elif decoded == "__gettime__":
+                    cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
+                else:
+                    cnn.sendall(b"invalid request")
+        except Exception as e:
+            print(e)
+            cnn.sendall(b"an error has occurred")
+            log.log(str(e))
 
 def runServer():
     client = Client("http://127.0.0.1:8080")
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
    
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            print("listening...")
-            
-            s.bind((config.get("Server", "host"), config.getint("Server", "port")))
-            s.listen()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((config.get("Server", "host"), config.getint("Server", "port")))
+        print("listening...")
 
-            while 1:
+        try:
+            while 1:                
+                s.listen()
                 cnn, addr = s.accept()
-                with cnn:
-                    try:                    
-                        while 1:
-                            data = cnn.recv(1024)
-                            decoded = data.decode()
-                            print("connection received by %s: %s" % (str(addr), decoded))                        
-                            log.log("connection received by %s: %s" % (str(addr), decoded))
+                threading.Thread(target=acceptClient, args=(cnn, addr, client)).start()
 
-                            if not data:
-                                break
-                            # if decoded.startswith((tuple(prefixes))) and \
-                            #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
-                            #     downloadTorrent(decoded, client, decoded[:2])
-                            #     cnn.sendall(b"sucessfully added torrent")
-                            if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
-                                downloadTorrent(decoded, client)
-                                cnn.sendall(b"sucessfully added torrent")
-                            elif decoded == "__listdownloaded__":
-                                cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
-                            elif decoded == "__listtorrents__":
-                                cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
-                            elif decoded == "__refreshplex__":
-                                updateLibrary()
-                                cnn.sendall(bytes("updated plex library", encoding="utf-8"))
-                            elif decoded == "__gettime__":
-                                cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
-                            else:
-                                cnn.sendall(b"invalid request")
-                    except Exception as e:
-                        print(e)
-                        cnn.sendall(b"an error has occurred")
-                        log.log(str(e))
-                        break                    
-    except ConnectionResetError as e:
-        # occasional crash. 
-        log.log(str(e))
-        runServer()
+                   
+        except ConnectionResetError as e:
+            # occasional crash. 
+            log.log(str(e))
+            runServer()
 
 
 
