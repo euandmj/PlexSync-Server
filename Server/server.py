@@ -1,25 +1,26 @@
-import socket
-import time
-import datetime
-import re
-import threading
 import configparser
+import datetime
 import os
+import re
+import socket
 import sys
-
+import threading
+import time
 from multiprocessing import Process
 
 from plexapi import myplex
-from plexapi.server import PlexServer
 from plexapi.library import Library
+from plexapi.server import PlexServer
 from qbittorrent import Client
-import logger
 
+import logger
 
 global DEFAULT_FILE_PATH
 global PLEX_PATH
 global prefixes
+global client
 global initTime
+global config
 
 # load below globals via .config
 config = configparser.ConfigParser()
@@ -42,12 +43,13 @@ try:
         except (configparser.NoOptionError, configparser.NoSectionError) as e:
             print("Error validating config.ini: \n%s" % e)
             raise
-            # raise Exception("Error validating config.ini: \n%s" % e)
 except IOError:
     print("the config.ini file is not found")
     raise
 finally:
     myPlex = myplex.MyPlexAccount(username=config.get("Plex", "username"), password=config.get("Plex", "password"))
+    client = Client(config.get("qBittorrent", "host"))
+    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
     DEFAULT_FILE_PATH = config.get("General", "savepath")
     PLEX_PATH = config.get("Plex", "directory")
@@ -68,9 +70,6 @@ def updateLibrary():
     src.library.update()
 
 def getTorrentlist():
-    client = Client("http://127.0.0.1:8080")
-    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
-
     torrents = []
 
     for t in client.torrents():
@@ -81,8 +80,6 @@ def getTorrentlist():
     return '\n'.join(torrents)
 
 def checkForUpdate():
-    client = Client("http://127.0.0.1:8080")
-    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
     # no completed torrents. skip. 
     if not client.torrents(filter="completed"):
         return
@@ -179,13 +176,8 @@ def getAppropriateFilePath(torrent):
         log.log("getAppropiateFilePath ERROR: %s - %s" % (e, torrent["name"]))
         return DEFAULT_FILE_PATH
 
-def downloadTorrent(uri, client):
-    #print("qBittorrent Version: %s" % client.app_version())
-
+def downloadTorrent(uri):
     hard_coded_save_path = DEFAULT_FILE_PATH
-    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
-
-    #softlier_coded_save_path = getAppropriateFilePath()
     client.download_from_link(uri, savepath=hard_coded_save_path)
 
     log.log("TORRENT ADDED: %s" % uri)
@@ -202,7 +194,8 @@ def downloadTorrent(uri, client):
         # override file path. 
         # function lost??
         #     
-        def overrideFilePath(): 
+        def overrideFilePath():
+            # use old api for torrent.set_location
             from qbittorrentapi import Client as xClient
             xc = xClient(config.get("qBittorrent", "host"), config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
             xt = next((x for x in xc.torrents.info.downloading() if x["magnet_uri"].lower() == uri.lower()), None) 
@@ -212,17 +205,9 @@ def downloadTorrent(uri, client):
                 log.log("WRITING %s TO %s" % (xt["name"], new_save_path))
                 xt.set_location(new_save_path)
 
-            # [s["magnet_uri"].lower() == uri.lower() for s in xc.torrents.info.downloading()]
-            # #for xt in xc.torrents.info.downloading():
-            # if xt["magnet_uri"].lower() == uri.lower():
-            #     print("suitable location for %s:\n%s" % (xt["name"], new_save_path))
-            #     xt.set_location(new_save_path)
-
-        
-        # use old api in overrideFilePath()
         overrideFilePath()
 
-def acceptClient(cnn, addr, tclient):
+def acceptClient(cnn, addr):
     with cnn:
         try:                    
             while 1:
@@ -238,7 +223,7 @@ def acceptClient(cnn, addr, tclient):
                 #     downloadTorrent(decoded, client, decoded[:2])
                 #     cnn.sendall(b"sucessfully added torrent")
                 if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
-                    downloadTorrent(decoded, tclient)
+                    downloadTorrent(decoded)
                     cnn.sendall(b"sucessfully added torrent")
                 elif decoded == "__listdownloaded__":
                     cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
@@ -257,9 +242,6 @@ def acceptClient(cnn, addr, tclient):
             log.log(str(e))
 
 def runServer():
-    client = Client("http://127.0.0.1:8080")
-    client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
-   
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((config.get("Server", "host"), config.getint("Server", "port")))
         print("listening...")
@@ -268,7 +250,7 @@ def runServer():
             while 1:                
                 s.listen()
                 cnn, addr = s.accept()
-                threading.Thread(target=acceptClient, args=(cnn, addr, client)).start()
+                threading.Thread(target=acceptClient, args=(cnn, addr)).start()
 
                    
         except ConnectionResetError as e:
@@ -289,4 +271,3 @@ if __name__ == "__main__":
     # runServer()
 
     # autoUpdater()
-
