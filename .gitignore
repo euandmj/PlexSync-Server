@@ -1,6 +1,7 @@
 qbittorrent.exe - Shortcut.lnk
 *.pyc
-*.lnk
+*.lnkServer/
+.vscode/launch.json
 config.ini
 server_log.txt
 magnets.txt
