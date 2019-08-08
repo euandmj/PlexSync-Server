@@ -99,6 +99,7 @@ def autoUpdater():
     
     # schedule a function to check if any of the hashes are now completed
     f = task.LoopingCall(checkForUpdate)
+    
     f.start(interval=15)
     reactor.run()
 
