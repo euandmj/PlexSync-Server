@@ -1,3 +1,3 @@
 ﻿# qbittorrent-plex-api
 
-Android Client: [here](https://github.com/euandmj/PlexSync-Mobile)
+Android client can be found [here](https://github.com/euandmj/PlexSync-Mobile)
