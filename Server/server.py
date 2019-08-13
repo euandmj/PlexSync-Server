@@ -1,4 +1,5 @@
 import configparser
+from ast import literal_eval
 import datetime
 import os
 import re
@@ -6,6 +7,7 @@ import socket
 import sys
 import threading
 import time
+from json import loads
 from multiprocessing import Process
 
 from plexapi import myplex
@@ -16,7 +18,8 @@ from qbittorrent import Client
 import logger
 
 global DEFAULT_FILE_PATH
-global PLEX_PATH
+global plex_directories
+# global PLEX_PATH
 global prefixes
 global client
 global initTime
@@ -36,7 +39,7 @@ try:
             config.get("Plex", "server")
             config.get("Plex", "username")
             config.get("Plex", "password")
-            config.get("Plex", "directory")
+            config.get("Plex", "directories")
             config.get("qBittorrent", "host")
             config.get("qBittorrent", "username")
             config.get("qBittorrent", "password")
@@ -51,9 +54,10 @@ finally:
     client = Client(config.get("qBittorrent", "host"))
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
     log = logger.logger(filename="server_log", user=config.get("Server", "name"))
+    
     DEFAULT_FILE_PATH = config.get("General", "savepath")
-    PLEX_PATH = config.get("Plex", "directory")
-    prefixes = ["AT", "MV", "TV", "DM", "AN"]
+    # PLEX_PATH = config.get("Plex", "directory")
+    plex_directories = literal_eval(config.get("Plex", "directories"))
     initTime = datetime.datetime.now()
 
 def getDownloadedList():
@@ -64,6 +68,10 @@ def getDownloadedList():
 
 def getServerTime():
     return str(initTime)[:-7]
+
+def getPlexDirectories():
+    # ? is a protected character
+    return '?'.join(plex_directories)
 
 def updateLibrary():
     src = myPlex.resource(config.get("Plex", "server")).connect()
@@ -134,7 +142,8 @@ def getAppropriateFilePath(torrent):
             return newdir                
 
     # the directories for which folders for individual media are stored
-    top_paths = [os.path.join(PLEX_PATH, f) for f in os.listdir(PLEX_PATH) if not os.path.isfile(os.path.join(PLEX_PATH, f))]
+    top_paths = plex_directories
+    #  [os.path.join(PLEX_PATH, f) for f in os.listdir(PLEX_PATH) if not os.path.isfile(os.path.join(PLEX_PATH, f))]
     # [r"I:\Movies\Anime", r"I:\Movies\Documentaries", r"I:\Movies\TV", r"I:\Movies\Movies"]
 
     #fname = torrent["name"].replace('.', ' ')
@@ -208,6 +217,35 @@ def downloadTorrent(uri):
 
         overrideFilePath()
 
+def downloadTorrentWithPath(pathTag, uri):
+    def getFilePathFromTag(tag):
+        # prefixes = ["AT", "MV", "TV", "DM", "AN"]
+        if tag == "MV":
+            return r"I:\Movies\Movies"
+        elif tag == "TV":
+            return r"I:\Movies\TV"
+        elif tag == "DM":
+            return r"I:\Movies\Documentaries"
+        elif tag == "AN":
+            return r"I:\Movies\Anime"
+        else:
+            return DEFAULT_FILE_PATH
+            
+    savepath = getFilePathFromTag(pathTag)
+
+    client.download_from_link(uri, savepath=savepath)
+
+    log.log("TORRENT ADDED: %s" % uri)
+
+    t = next((x for x in client.torrents() if x["magnet_uri"].lower() == uri.lower()), None)
+
+    if t is not None:
+        log.log("WRITING %s TO %s" % (t["name"], savepath))
+    
+    return savepath
+
+
+
 def acceptClient(cnn, addr):
     with cnn:
         try:                    
@@ -219,10 +257,6 @@ def acceptClient(cnn, addr):
 
                 if not data:
                     break
-                # if decoded.startswith((tuple(prefixes))) and \
-                #     re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[2:]):
-                #     downloadTorrent(decoded, client, decoded[:2])
-                #     cnn.sendall(b"sucessfully added torrent")
                 if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded):
                     downloadTorrent(decoded)
                     cnn.sendall(b"sucessfully added torrent")
@@ -235,6 +269,8 @@ def acceptClient(cnn, addr):
                     cnn.sendall(bytes("updated plex library", encoding="utf-8"))
                 elif decoded == "__gettime__":
                     cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
+                elif decoded == "__getdirectories__":
+                    cnn.sendall(bytes(getPlexDirectories(), encoding="utf-8"))
                 else:
                     cnn.sendall(b"invalid request")
         except Exception as e:
@@ -263,12 +299,12 @@ def runServer():
 
 
 if __name__ == "__main__":
-    server_process = Process(target=runServer)
-    updater_process = Process(target=autoUpdater)
-    server_process.start()
-    updater_process.start()
+    # server_process = Process(target=runServer)
+    # updater_process = Process(target=autoUpdater)
+    # server_process.start()
+    # updater_process.start()
 
     # run for debugging.
-    # runServer()
+    runServer()
 
     # autoUpdater()
