@@ -1,5 +1,4 @@
 import configparser
-from ast import literal_eval
 import datetime
 import os
 import re
@@ -7,8 +6,10 @@ import socket
 import sys
 import threading
 import time
+from ast import literal_eval
 from json import loads
 from multiprocessing import Process
+from urllib.parse import unquote
 
 from plexapi import myplex
 from plexapi.library import Library
@@ -111,121 +112,114 @@ def autoUpdater():
     f.start(interval=15)
     reactor.run()
 
-# a crude way of finding most appropriate directory.
-def getAppropriateFilePath(torrent, pathIndex):
-    import difflib
-    def getSeasonSubDir(torrentName, path, dir):
-        # usual syntax is SXXEXX
-        # group1- name
-        # group2 - season (value)
-        # group3 - episode (value)
-        # group4 - rest
-        regex = re.match(r'(.*?)\.S?(\d{1,2})E?(\d{2})\.(.*)', torrentName)
-        
-        # no regex match, return worker
-        if not regex:
-            return path
-        else:           
-            season = regex.group(2)
 
+def downloadTorrentFromUri(uri, pathIndex):
+    def downloadTorrent():
+        client.download_from_link(uri, savepath=DEFAULT_DOWNLOADED_FILE_PATH)
+
+        # return the extracted hash from the uri
+        # hash appears before the name in the uri and is wrapped in identifiable tags
+
+        # parse out any http uri syntax
+        magnet = unquote(uri)
+
+        magnet = re.sub(r'magnet:\?xt=urn:btih:', '', magnet)
+        magnet = magnet[:magnet.index('&dn=')]
+
+        # if the string now matches a hash regex
+        if re.match('[a-zA-Z0-9]*', magnet):
+            return magnet
+        else:
+            return None
+    def getAppropriateFilePath(torrent, pathIndex):
+        import difflib
+        def getSeasonSubDir(name, season, path):
             dirs = [f for f in os.listdir(path) if not os.path.isfile(os.path.join(path, f))]
 
+            # find existing season subfolder
             for d in dirs:
                 if ("s" + season).lower() in d.lower() or \
                     ("season " + season).lower() in d.lower():
                     return path + "\\" + d
             
             # directory doesnt exist, create and return
-            newdir = path + "\\" + (regex.group(1) + " ") + ("S" + season)
-            newdir = newdir.replace('.', ' ')
+            newdir = "%s\\%s Season %s" % (path, name, season)
             os.mkdir(newdir)
-            return newdir                
+            return newdir
 
-    # set this array to directories to ALWAYS crawl
-    top_paths = [DEFAULT_DOWNLOADED_FILE_PATH]
+        client_path = plex_directories[pathIndex]
 
-    # old absolute crawl
-    #  [os.path.join(PLEX_PATH, f) for f in os.listdir(PLEX_PATH) if not os.path.isfile(os.path.join(PLEX_PATH, f))]
-    
-    # paths to crawl are constants plus the spinner index received from client
-    # prioritise path at given index
-    top_paths.insert(0, plex_directories[pathIndex])
-    
+        try:
+            if '.' in torrent['name']:
+                t_split = torrent['name'].split('.')
+            elif ' ' in torrent['name']:
+                t_split = torrent['name'].split(' ')
 
-    try:
-        if '.' in torrent['name']:
-            t_split = torrent['name'].split('.')
-        elif ' ' in torrent['name']:
-            t_split = torrent['name'].split(' ')
+            # find if torrent has seasons. 
+            # usual syntax is SXXEXX
+            # group1- name
+            # group2 - season (value)
+            # group3 - episode (value)
+            # group4 - rest
+            regex = re.match(r'(.*?)\.S?(\d{1,2})E?(\d{2})\.(.*)', torrent['name'].replace(' ', '.'))
+            
+            if not regex:
+                # find the best fitting season folder                
+                # gets the media name
+                for i, st in enumerate(t_split):
+                    if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) or st.lower() == "season":
+                        # presume name is up to this index
+                        media_name = ' '.join(t_split[:i])
+                        break
+                
+                # get all folders
+                dirs = [f for f in os.listdir(client_path) if not os.path.isfile(os.path.join(client_path, f))]
 
-        for i, st in enumerate(t_split):
-            if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) or st.lower() == "season":
-                # presume name is up to this point, compare torrent 'name' with folder name
-                media_name = ' '.join(t_split[:i])
+                for d in dirs:
+                    # if the ratio is acceptable
+                    if difflib.SequenceMatcher(None, a=media_name.lower(), b=d.lower()).ratio() >= 0.77:
+                        # we should try to find the right season folder
+                        tv_dir = getSeasonSubDir(media_name, regex.group(2), client_path + "\\" + d)
+                        return tv_dir
+
+            return client_path + "\\" + torrent['name']
+        except NameError:
+            return DEFAULT_DOWNLOADED_FILE_PATH
+        except Exception as e:
+            log.log("getAppropiateFilePath ERROR: %s - %s" % (e, torrent["name"]))
+            return DEFAULT_DOWNLOADED_FILE_PATH
+    def overrideFilePath(hash):
+        # use old api for torrent.set_location
+        from qbittorrentapi import Client as xClient
+        xc = xClient(config.get("qBittorrent", "host"), config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
         
-        # DOESNT GUESS RIGHT DIR
+        xt = next((x for x in xc.torrents.info.downloading() if x["hash"].lower() == hash.lower()), None) 
+        
+        if xt is not None:
+            print("suitable location for %s %s" % (xt["name"], new_save_path))
+            log.log("WRITING %s TO %s" % (xt["name"], new_save_path))
+            xt.set_location(new_save_path)
 
-        # for each directory, analyze the subdirectories to find the most fitting match.    
-        for path in top_paths:
-            # get all folders
-            dirs = [f for f in os.listdir(path) if not os.path.isfile(os.path.join(path, f))]
-
-            for d in dirs:
-                # if the directory contains a part of the name, assume a fit match
-                # if d in media_name:
-                # -- new --
-                # if the ratio is acceptable
-                if difflib.SequenceMatcher(None, a=media_name.lower(), b=d.lower()).ratio() >= 0.77:
-                    # if the dir is tv or anime; we should try to find the right season folder
-                    # if path == top_paths[0] or path == top_paths[2]:
-                    tv_dir = getSeasonSubDir(torrent["name"], path + "\\" + d, d)
-                    return tv_dir
-
-        return DEFAULT_DOWNLOADED_FILE_PATH
-    except NameError:
-        return DEFAULT_DOWNLOADED_FILE_PATH
-    except Exception as e:
-        log.log("getAppropiateFilePath ERROR: %s - %s" % (e, torrent["name"]))
-        return DEFAULT_DOWNLOADED_FILE_PATH
-
-def downloadTorrent(uri, pathIndex):
-    hard_coded_save_path = DEFAULT_DOWNLOADED_FILE_PATH
-    client.download_from_link(uri, savepath=hard_coded_save_path)
-
+    torrent_hash = downloadTorrent()    
     log.log("TORRENT ADDED: %s" % uri)
-
-
-    t = next((x for x in client.torrents() if x["magnet_uri"].lower() == uri.lower()), None)
-
-    # magnet uri may not useful to fetch torrents 100%
+    client.sync()
+    
+    # use the extracted hash to fetch the just added torrent
+    t = next((x for x in client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
 
     if t is not None:
         #kinda bugs me how this call is here
         new_save_path = getAppropriateFilePath(t, int(pathIndex))
 
         # override file path. 
-        # function lost??
-        #     
-        def overrideFilePath():
-            # use old api for torrent.set_location
-            from qbittorrentapi import Client as xClient
-            xc = xClient(config.get("qBittorrent", "host"), config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
-            xt = next((x for x in xc.torrents.info.downloading() if x["magnet_uri"].lower() == uri.lower()), None) 
-            
-            if xt is not None:
-                print("suitable location for %s %s" % (xt["name"], new_save_path))
-                log.log("WRITING %s TO %s" % (xt["name"], new_save_path))
-                xt.set_location(new_save_path)
-
-        overrideFilePath()
+        overrideFilePath(torrent_hash)
 
 def acceptClient(cnn, addr):
     with cnn:
         try:                    
             while 1:
                 data = cnn.recv(1024)
-                decoded = data.decode()
-                
+                decoded = data.decode()                
 
                 print("connection received by %s: %s" % (str(addr), decoded))                        
                 log.log("connection received by %s: %s" % (str(addr), decoded))
@@ -233,7 +227,7 @@ def acceptClient(cnn, addr):
                 if not data:
                     break
                 if re.match(r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*", decoded[1:]):
-                    downloadTorrent(decoded[1:], decoded[0])
+                    downloadTorrentFromUri(decoded[1:], decoded[0])
                     cnn.sendall(b"sucessfully added torrent")
                 elif decoded == "__listdownloaded__":
                     cnn.sendall(bytes(getDownloadedList(), encoding="utf-8"))
@@ -264,7 +258,6 @@ def runServer():
                 cnn, addr = s.accept()
                 threading.Thread(target=acceptClient, args=(cnn, addr)).start()
 
-                   
         except ConnectionResetError as e:
             # occasional crash. 
             log.log(str(e))
