@@ -18,9 +18,12 @@ from qbittorrent import Client
 
 import logger
 
+class PathNotFound(Exception):
+    def __str__(self):
+        return "Directory not found"
+
 global DEFAULT_DOWNLOADED_FILE_PATH
 global plex_directories
-# global PLEX_PATH
 global prefixes
 global client
 global initTime
@@ -44,8 +47,20 @@ try:
             config.get("qBittorrent", "host")
             config.get("qBittorrent", "username")
             config.get("qBittorrent", "password")
+            config.get("General", "savepath")
+
+            # verify directories
+            for d in config.get("Plex", "directories"):
+                if not os.path.exists(d):
+                    raise PathNotFound
+            if not os.path.exists(config.get("General", "savepath")):
+                raise PathNotFound
+            
         except (configparser.NoOptionError, configparser.NoSectionError) as e:
             print("Error validating config.ini: \n%s" % e)
+            raise
+        except PathNotFound as e:
+            print(e)
             raise
 except IOError:
     print("the config.ini file is not found")
@@ -54,16 +69,19 @@ finally:
     myPlex = myplex.MyPlexAccount(username=config.get("Plex", "username"), password=config.get("Plex", "password"))
     client = Client(config.get("qBittorrent", "host"))
     client.login(config.get("qBittorrent", "username"), config.get("qBittorrent", "password"))
-    log = logger.logger(filename="server_log", user=config.get("Server", "name"))
-    
+    log = logger.logger(filename="server_log", user=config.get("Server", "name"))    
     DEFAULT_DOWNLOADED_FILE_PATH = config.get("General", "savepath")
-    # PLEX_PATH = config.get("Plex", "directory")
     plex_directories = literal_eval(config.get("Plex", "directories"))
     initTime = datetime.datetime.now()
 
+    # verify plex directories exist
+    for dir in plex_directories:
+        if not os.path.exists(dir):
+            raise
+
 def getDownloadedList():
     # list all downloaded folders
-    paths = [f for f in os.listdir(DEFAULT_DOWNLOADED_FILE_PATH)]# if not os.path.isfile(os.path.join(DEFAULT_DOWNLOADED_FILE_PATH, f))]
+    paths = [f for f in os.listdir(DEFAULT_DOWNLOADED_FILE_PATH)]
     
     return ','.join(paths)
 
@@ -84,8 +102,6 @@ def getTorrentlist():
     for t in client.torrents():
         torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
 
-    # if not torrents:
-    #     return "ree"
     return '\n'.join(torrents)
 
 def checkForUpdate():
@@ -235,7 +251,7 @@ def acceptClient(cnn, addr):
                     cnn.sendall(bytes(getTorrentlist(), encoding="utf-8"))
                 elif decoded == "__refreshplex__":
                     updateLibrary()
-                    cnn.sendall(bytes("updated plex library", encoding="utf-8"))
+                    cnn.sendall(b"updated plex library")
                 elif decoded == "__gettime__":
                     cnn.sendall(bytes(getServerTime(), encoding="utf-8"))
                 elif decoded == "__getdirectories__":
