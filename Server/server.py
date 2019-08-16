@@ -163,7 +163,7 @@ def downloadTorrentFromUri(uri, pathIndex):
             # group4 - rest
             regex = re.match(r'(.*?)\.S?(\d{1,2})E?(\d{2})\.(.*)', torrent['name'].replace(' ', '.'))
             
-            if not regex:
+            if regex:
                 # find the best fitting season folder                
                 # gets the media name
                 for i, st in enumerate(t_split):
@@ -206,7 +206,7 @@ def downloadTorrentFromUri(uri, pathIndex):
     
     # use the extracted hash to fetch the just added torrent
     t = next((x for x in client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
-
+    
     if t is not None:
         #kinda bugs me how this call is here
         new_save_path = getAppropriateFilePath(t, int(pathIndex))
@@ -267,12 +267,12 @@ def runServer():
 
 
 if __name__ == "__main__":
-    # server_process = Process(target=runServer)
-    # updater_process = Process(target=autoUpdater)
-    # server_process.start()
-    # updater_process.start()
+    server_process = Process(target=runServer)
+    updater_process = Process(target=autoUpdater)
+    server_process.start()
+    updater_process.start()
 
     # run for debugging.
-    runServer()
+    # runServer()
 
     # autoUpdater()
