@@ -50,10 +50,12 @@ try:
             config.get("General", "savepath")
 
             # verify directories
-            for d in config.get("Plex", "directories"):
+            dirs = literal_eval(config.get("Plex", "directories"))
+            for d in dirs:
                 if not os.path.exists(d):
                     raise PathNotFound
-            if not os.path.exists(config.get("General", "savepath")):
+            dirs = config.get("General", "savepath")
+            if not os.path.exists(dirs):
                 raise PathNotFound
             
         except (configparser.NoOptionError, configparser.NoSectionError) as e:
@@ -73,11 +75,6 @@ finally:
     DEFAULT_DOWNLOADED_FILE_PATH = config.get("General", "savepath")
     plex_directories = literal_eval(config.get("Plex", "directories"))
     initTime = datetime.datetime.now()
-
-    # verify plex directories exist
-    for dir in plex_directories:
-        if not os.path.exists(dir):
-            raise
 
 def getDownloadedList():
     # list all downloaded folders
