@@ -6,15 +6,16 @@ import socket
 import sys
 import threading
 import time
-import psutil
 from ast import literal_eval
 from json import loads
 from multiprocessing import Process
 from urllib.parse import unquote
 
+import psutil
 from qbittorrent import Client
 
 import logger
+from autoupdater import AutoUpdater
 
 
 class PathNotFound(Exception):
@@ -46,21 +47,29 @@ class Server:
 
         self.login()
 
+        self.autoUpdater = AutoUpdater(config, _logger=self.logger)
+
     @property
     def time(self):
         return str(self.time)[:-7]
     @time.setter
     def time(self, value):
         self.time = value
+    
+    def start(self):
+        server_prcs = Process(target=self.listen)
+        updater_prcs = Process(target=self.autoUpdater.start)
 
+        server_prcs.start()
+        updater_prcs.start()
 
     def login(self):
-        self.myPlex = myplex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
-        self.client = qbittorrentClient(self.config.get("qBittorrent", "host"))
+        self.myPlex = self.myPlex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
+        self.client = self.client(self.config.get("qBittorrent", "host"))
 
         self.client.login(self.config.get("qBittorrent", "username"), self.config.get("qBittorrent", "password"))
 
-    def start(self):
+    def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.config.get("Server", "host"), self.config.getint("Server", "port")))
             print("listening...")
@@ -74,7 +83,7 @@ class Server:
             # occasional crash, restart the listen
             except ConnectionResetError as e:
                 self.logger.log(str(e))
-                self.start()
+                self.listen()
     
     def acceptClient(self, cnn, addr):
         try:
@@ -106,9 +115,9 @@ class Server:
                     cnn.sendall(resp)
                 else:
                     cnn.sendall(b"invalid request")
-            except Exception as e:
-                cnn.sendall(b"an error has occurred")
-                self.logger.log(str(e))
+        except Exception as e:
+            cnn.sendall(b"an error has occurred")
+            self.logger.log(str(e))
 
     def downloadTorrent(self, uri, pathIndex):
         def download():
@@ -194,15 +203,15 @@ class Server:
             
             if xt is not None:
                 print("suitable location for %s %s" % (xt["name"], new_save_path))
-                log.log("WRITING %s TO %s" % (xt["name"], new_save_path))
+                self.logger.log("WRITING %s TO %s" % (xt["name"], new_save_path))
                 xt.set_location(new_save_path)        
 
-        torrent_hash = downloadTorrent()    
+        torrent_hash = download()    
         self.logger.log("TORRENT ADDED: %s" % uri)
-        client.sync()
+        self.client.sync()
         
         # use the extracted hash to fetch the just added torrent
-        t = next((x for x in client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
+        t = next((x for x in self.client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
         
         if t is not None:
             #kinda bugs me how this call is here
@@ -226,11 +235,9 @@ class Server:
         return '\n'.join(torrents)
 
     def updateLibrary(self):
-        res = myPlex.resource(self.config.get("Plex", "server")).connect()
+        res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
         res.library.update()
 
     def getPlexDirectories(self):
         # ? is a protected character
         return '?'.join(self.plex_directories)
-
-
