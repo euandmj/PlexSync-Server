@@ -279,8 +279,7 @@ def runServer():
 
 
 
-if __name__ == "__main__":
-    
+if __name__ == "__main__":    
     server_process = Process(target=runServer)
     updater_process = Process(target=autoUpdater)
     server_process.start()

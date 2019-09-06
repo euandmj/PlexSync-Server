@@ -13,8 +13,8 @@ from urllib.parse import unquote
 
 import psutil
 from qbittorrent import Client
+from plexapi import myplex
 
-import logger
 from autoupdater import AutoUpdater
 
 
@@ -28,7 +28,7 @@ class Server:
     COMMAND_GET_TORRENTS = "__listtorrents__"
     COMMAND_GET_TIME = "__gettime__"
     COMMAND_GET_DIRECTORIES = "__getdirectories__"
-    COMMAND_POST_REFRSH = "__refreshplex__"
+    COMMAND_POST_REFRESH = "__refreshplex__"
     
     def __str__(self):
         return \
@@ -43,7 +43,7 @@ class Server:
         self.plex_directories = literal_eval(config.get("Plex", "directories"))
 
         # set time as a property
-        self.time = datetime.datetime.now()
+        self._time = datetime.datetime.now()
 
         self.login()
 
@@ -51,10 +51,10 @@ class Server:
 
     @property
     def time(self):
-        return str(self.time)[:-7]
+        return str(self._time)[:-7]
     @time.setter
     def time(self, value):
-        self.time = value
+        self._time = value
     
     def start(self):
         server_prcs = Process(target=self.listen)
@@ -64,15 +64,17 @@ class Server:
         updater_prcs.start()
 
     def login(self):
-        self.myPlex = self.myPlex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
-        self.client = self.client(self.config.get("qBittorrent", "host"))
+        self.myPlex = myplex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
+        self.client = Client(self.config.get("qBittorrent", "host"))
 
         self.client.login(self.config.get("qBittorrent", "username"), self.config.get("qBittorrent", "password"))
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.config.get("Server", "host"), self.config.getint("Server", "port")))
+
             print("listening...")
+            self.logger.log("SERVER LISTENING")
 
             try:
                 while 1:
@@ -83,7 +85,7 @@ class Server:
             # occasional crash, restart the listen
             except ConnectionResetError as e:
                 self.logger.log(str(e))
-                self.listen()
+                # self.listen()
     
     def acceptClient(self, cnn, addr):
         try:
@@ -99,12 +101,12 @@ class Server:
                     self.downloadTorrent(decoded[1:], decoded[0])
                     cnn.sendall(b"sucessfully added torrent")
                 elif decoded == self.COMMAND_GET_DLS:
-                    resp = bytes(self.getDownloadList(), encoding="utf-8")
+                    resp = bytes(self.getDownloadList, encoding="utf-8")
                     cnn.sendall(resp)
                 elif decoded == self.COMMAND_GET_TORRENTS:
-                    resp = bytes(self.getTorrentList(), encoding="utf-8")
+                    resp = bytes(self.getTorrentList, encoding="utf-8")
                     cnn.sendall(resp)
-                elif decoded == self.COMMAND_POST_REFRSH:
+                elif decoded == self.COMMAND_POST_REFRESH:
                     self.updateLibrary()
                     cnn.sendall(b"updated plex library")
                 elif decoded == self.COMMAND_GET_TIME:
@@ -220,12 +222,21 @@ class Server:
             # override file path. 
             overrideFilePath(torrent_hash)
 
+    
+    
+
+    def updateLibrary(self):
+        res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
+        res.library.update()
+        
+    @property
     def getDownloadList(self):
         # list all downloaded folders
         paths = [f for f in os.listdir(self.DEFAULT_DOWNLOADED_FILE_PATH)]
         
         return ','.join(paths)
-    
+
+    @property
     def getTorrentList(self):
         torrents = []
 
@@ -234,10 +245,7 @@ class Server:
 
         return '\n'.join(torrents)
 
-    def updateLibrary(self):
-        res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
-        res.library.update()
-
+    @property
     def getPlexDirectories(self):
         # ? is a protected character
         return '?'.join(self.plex_directories)
