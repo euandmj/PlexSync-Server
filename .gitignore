@@ -9,3 +9,4 @@ t.py
 Server/.vscode/.ropeproject/config.py
 Server/.vscode/.ropeproject/objectdb
 Server/.vscode/launch.json
+Server/config.ini
