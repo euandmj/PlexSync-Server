@@ -1,4 +1,4 @@
-from serv import Server
+from server import Server
 from ast import literal_eval
 
 import os
@@ -50,6 +50,9 @@ if __name__ == "__main__":
     except IOError:
         print("the config.ini file is not found")
         raise
-    l = logger.logger(filename="server_log", user=config.get("Server", "name"))
-    s = Server(config, l)
-    s.start()
+    try:        
+        l = logger.logger(filename="server_log", user=config.get("Server", "name"))
+        s = Server(config, l)
+        s.start()
+    except Exception as e:
+        print("Critical error occurred:\n%s" % e)

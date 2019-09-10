@@ -56,11 +56,12 @@ class Server:
         self._time = value
     
     def start(self):
-        server_prcs = Process(target=self.listen)
-        updater_prcs = Process(target=self.autoUpdater.start)
+        self.listen()
+        # server_prcs = Process(target=self.listen)
+        # updater_prcs = Process(target=self.autoUpdater.start)
 
-        server_prcs.start()
-        updater_prcs.start()
+        # server_prcs.start()
+        # updater_prcs.start()
 
     def login(self):
         self.myPlex = myplex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
@@ -96,7 +97,7 @@ class Server:
 
                 if not data:
                     break
-                if re.match(self.MAGNET_URI, decoded):
+                if re.match(self.MAGNET_URI, decoded[1:]):
                     self.downloadTorrent(decoded[1:], decoded[0])
                     cnn.sendall(b"sucessfully added torrent")
                 elif decoded == self.COMMAND_GET_DLS:
@@ -245,3 +246,7 @@ class Server:
     def getPlexDirectories(self):
         # ? is a protected character
         return '?'.join(self.plex_directories)
+
+
+if __name__ == "__main__":
+    pass
