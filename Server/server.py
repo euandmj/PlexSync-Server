@@ -56,12 +56,14 @@ class Server:
         self._time = value
     
     def start(self):
-        self.listen()
-        # server_prcs = Process(target=self.listen)
-        # updater_prcs = Process(target=self.autoUpdater.start)
+        # self.listen()
+        # self.autoUpdater.start()
 
-        # server_prcs.start()
-        # updater_prcs.start()
+        server_prcs = Process(target=self.listen)
+        updater_prcs = Process(target=self.autoUpdater.start)
+
+        server_prcs.start()
+        updater_prcs.start()
 
     def login(self):
         self.myPlex = myplex.MyPlexAccount(username=self.config.get("Plex", "username"), password=self.config.get("Plex", "password"))
@@ -192,7 +194,7 @@ class Server:
 
                 return client_path + "\\" + torrent['name']
             except NameError:
-                return self.DEFAULT_DOWNLOADED_FILE_PATH
+                return client_path + "\\" + torrent['name']
             except Exception as e:
                 self.logger.log("ERROR getAppropiateFilePath: %s - %s" % (e, torrent["name"]))
                 return self.DEFAULT_DOWNLOADED_FILE_PATH

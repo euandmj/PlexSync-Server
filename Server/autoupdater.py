@@ -14,7 +14,7 @@ class AutoUpdater:
         self.config = config
         self.interval = interval
 
-        if _logger is logger.logger:
+        if _logger is not None:
             self.logger = _logger
 
         # login to the various clients

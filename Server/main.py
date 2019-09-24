@@ -4,6 +4,7 @@ from ast import literal_eval
 import os
 import configparser
 import logger
+import sys
 
 
 class PathNotFound(Exception):
@@ -50,7 +51,7 @@ if __name__ == "__main__":
     except IOError:
         print("the config.ini file is not found")
         raise
-    try:        
+    try:                
         l = logger.logger(filename="server_log", user=config.get("Server", "name"))
         s = Server(config, l)
         s.start()
