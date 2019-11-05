@@ -75,7 +75,7 @@ class Server:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.config.get("Server", "host"), self.config.getint("Server", "port")))
 
-            print("listening...")
+            print("listening on %s:%i...." % (self.config.get("Server", "host"), self.config.getint("Server", "port")))
             self.logger.log("SERVER LISTENING")
 
             try:
@@ -100,8 +100,9 @@ class Server:
                 if not data:
                     break
                 if re.match(self.MAGNET_URI, decoded[1:]):
-                    self.downloadTorrent(decoded[1:], decoded[0])
-                    cnn.sendall(b"sucessfully added torrent")
+                    resp = self.downloadTorrent(decoded[1:], decoded[0])
+                    encoding_resp = bytes(resp, encoding="utf-8")
+                    cnn.sendall(encoding_resp)
                 elif decoded == self.COMMAND_GET_DLS:
                     resp = bytes(self.getDownloadList, encoding="utf-8")
                     cnn.sendall(resp)
@@ -206,7 +207,7 @@ class Server:
             xt = next((x for x in xc.torrents.info.downloading() if x["hash"].lower() == hash.lower()), None) 
             
             if xt is not None:
-                print("suitable location for %s %s" % (xt["name"], new_save_path))
+                # print("suitable location for %s %s" % (xt["name"], new_save_path))
                 self.logger.log("WRITING %s TO %s" % (xt["name"], new_save_path))
                 xt.set_location(new_save_path)        
 
@@ -223,6 +224,7 @@ class Server:
 
             # override file path. 
             overrideFilePath(torrent_hash)
+        return "%s\n%s" % (t["name"], new_save_path)
 
     def updateLibrary(self):
         res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
@@ -246,7 +248,7 @@ class Server:
 
     @property
     def getPlexDirectories(self):
-        # ? is a protected character
+        # ? is a protected char why not
         return '?'.join(self.plex_directories)
 
 
