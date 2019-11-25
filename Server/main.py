@@ -69,16 +69,18 @@ if __name__ == "__main__":
                 openQbittorrent(config.get("General", "qbt_savepath"))
                 main(sys.argv)
             except WebAPIStart as e:
+                print(e)
                 raise
             except (KeyboardInterrupt, SystemExit):
                 raise
-        except Exception as e:
-            print("Critical error occurred:\n%s" % e)
-
         except IOError:
             print("the config.ini file is not found")
             raise
         except (KeyboardInterrupt, SystemExit):
             os.kill(pid=os.getpid())
             raise
+        except Exception as e:
+            print("Critical error occurred:\n%s" % e)
+
+       
 

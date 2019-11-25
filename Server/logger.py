@@ -24,7 +24,7 @@ class logger:
 
         self.user = user
         self.filepath = filepath + "\\" + filename + ".txt"
-        self.sign = "ud t:"
+        self.sign = "ud h:m:s:"
         self.encoding = encoding
 
 
@@ -62,11 +62,11 @@ class logger:
             elif s == 't':
                 signstr += str(datetime.datetime.now().time())
             elif s == 'h':
-                signstr += str(datetime.time.hour)
+                signstr += str(datetime.datetime.now().hour)
             elif s == 'm':
-                signstr += str(datetime.time.minute)
+                signstr += str(datetime.datetime.now().minute)
             elif s == 's':
-                signstr += str(datetime.time.second)
+                signstr += str(datetime.datetime.now().second)
             elif s == 'ms':
                 signstr
             elif s == 'u':

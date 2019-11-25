@@ -123,6 +123,7 @@ class Server:
         except Exception as e:
             cnn.sendall(b"an error has occurred")
             self.logger.log(str(e))
+            
 
     def downloadTorrent(self, uri, pathIndex):
         def download():
@@ -241,10 +242,20 @@ class Server:
     def getTorrentList(self):
         torrents = []
 
-        for t in self.client.torrents():
-            torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
 
-        return '\n'.join(torrents)
+        try:
+            _t = self.client.torrents()
+
+        except Exception as e:
+            # 403 forbiddent exception (cant find exception type)
+            # try relogin
+            self.logger.log(str(type(e)))
+            self.login()
+        finally:
+            for t in _t:
+                torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
+        
+        return '\n'.join(torrents)        
 
     @property
     def getPlexDirectories(self):
