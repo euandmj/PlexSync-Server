@@ -2,6 +2,7 @@ from twisted.internet import task, reactor
 from plexapi import myplex
 from qbittorrent import Client as qbittorrentClient
 import logger
+import requests
 
 
 class AutoUpdater:
@@ -32,21 +33,25 @@ class AutoUpdater:
 
         self.client.login(self.config.get("qBittorrent", "username"), self.config.get("qBittorrent", "password"))
 
-
     def checkForUpdate(self):
         # there are no torrents marked as completed. skip.
-        if not self.client.torrents(filter="completed"):
-            return
-        
-        # log and delete from client the completed torrents
-        for torrent in self.client.torrents(filter="completed"):
-            if self.logger is not None:
-                self.logger.log("COMPLETED %s" % torrent["name"])
-            self.client.delete(torrent["hash"])
+        try:
+			if not self.client.torrents(filter="completed"):
+				return
+
+			# log and delete from client the completed torrents
+			for torrent in self.client.torrents(filter="completed"):
+				if self.logger is not None:
+					self.logger.log("COMPLETED %s" % torrent["name"])
+				self.client.delete(torrent["hash"])
+        except requests.exceptions.ConnectionError:
+            from os import startfile
+            # qbittorrent was likely killed by vpn. restart qbt
+            startfile(self.config.get("General", "qbt_savepath"))
         
         # update the plex library
         self.updateLibrary()
-        
+
     def updateLibrary(self):
         res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
         res.library.update()
