@@ -14,6 +14,11 @@ config = configparser.ConfigParser()
 def openQbittorrent(path):
     os.startfile(path)
 
+def verifyPaths(*args):
+    for paths in args:
+        if [d for d in paths if not os.path.exists(d)]:
+            raise PathNotFound
+
 def main(args):           
     l = logger.logger(filename="server_log", user=config.get("Server", "name"))
     s = Server(config, l)
@@ -40,13 +45,7 @@ if __name__ == "__main__":
             config.get("General", "savepath")
 
             # verify directories
-            dirs = literal_eval(config.get("Plex", "directories"))
-            for d in dirs:
-                if not os.path.exists(d):
-                    raise PathNotFound
-            dirs = config.get("General", "savepath")
-            if not os.path.exists(dirs):
-                raise PathNotFound
+            verifyPaths(literal_eval(config.get("Plex", "directories")), [config.get("General", "savepath")])
 
             main(sys.argv)
             
@@ -62,14 +61,11 @@ if __name__ == "__main__":
                 main(sys.argv)
             except WebAPIStart as e:
                 print(e)
-                raise
             except (KeyboardInterrupt, SystemExit):
                 raise
         except IOError:
             print("the config.ini file is not found")
-            raise
         except (KeyboardInterrupt, SystemExit):
             os.kill(pid=os.getpid())
-            raise
         except Exception as e:
             print("Critical error occurred:\n%s" % e)
