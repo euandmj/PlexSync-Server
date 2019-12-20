@@ -2,6 +2,7 @@ import configparser
 import os
 import sys
 from ast import literal_eval
+from exceptions import PathNotFound, WebAPIStart
 
 import requests
 
@@ -9,15 +10,6 @@ import logger
 from server import Server
 
 config = configparser.ConfigParser()
-
-
-class PathNotFound(Exception):
-    def __str__(self):
-        return "Directory not found"
-class WebAPIStart(Exception):
-    def __str__(self):
-        return "error trying to open qBittorrent\n \
-                    Please have qBitTorrent running with WebAPI on %s" % config.get("qBittorrent", "host")
 
 def openQbittorrent(path):
     os.startfile(path)
@@ -81,6 +73,3 @@ if __name__ == "__main__":
             raise
         except Exception as e:
             print("Critical error occurred:\n%s" % e)
-
-       
-
