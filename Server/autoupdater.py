@@ -28,17 +28,20 @@ class AutoUpdater:
         f.start(interval=self.interval)
         reactor.run()
 
-    def login(self):
-        self.myPlex = myplex.MyPlexAccount(username=self.config.get(
-            "Plex", "username"), password=self.config.get("Plex", "password"))
-        self.client = qbittorrentClient(self.config.get("qBittorrent", "host"))
+    def login(self, count = 0):
+        try:
+            self.myPlex = myplex.MyPlexAccount(username=self.config.get(
+                "Plex", "username"), password=self.config.get("Plex", "password"))
+            self.client = qbittorrentClient(self.config.get("qBittorrent", "host"))
 
-        self.client.login(self.config.get("qBittorrent", "username"),
-                          self.config.get("qBittorrent", "password"))
+            self.client.login(self.config.get("qBittorrent", "username"),
+                            self.config.get("qBittorrent", "password"))
+        except requests.exceptions.ConnectionError:
+            self.startQbt()
 
     def checkForUpdate(self):
-        # there are no torrents marked as completed. skip.
         try:
+            # there are no torrents marked as completed. skip.
             if not self.client.torrents(filter="completed"):
                 return
                 
@@ -48,6 +51,9 @@ class AutoUpdater:
             self.client.delete(torrent["hash"])
         except requests.exceptions.ConnectionError:
             self.startQbt()
+        except requests.exceptions.HTTPError as e:
+            self.logger.log(f"ERROR: {e}")
+            self.login()
 
         # update the plex library
         self.updateLibrary()
