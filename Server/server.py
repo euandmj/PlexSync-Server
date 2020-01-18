@@ -177,6 +177,7 @@ class Server:
                         if re.match(r"[Ss](\d{1,2})[Ee](\d{1,2})", st) or st.lower() == "season":
                             # presume name is up to this index
                             media_name = ' '.join(t_split[:i])
+                            self.logger.log(f"media_name: {media_name}")
                             break
                     
                     # get all folders
@@ -184,7 +185,7 @@ class Server:
 
                     for d in dirs:
                         # if the ratio is acceptable
-                        if difflib.SequenceMatcher(None, a=media_name.lower(), b=d.lower()).ratio() >= 0.77:
+                        if difflib.SequenceMatcher(None, a=media_name.lower(), b=d.lower()).ratio() >= 0.55:
                             # we should try to find the right season folder
                             tv_dir = getSeasonSubDir(media_name, regex.group(2), client_path + "\\" + d)
                             return tv_dir
@@ -236,8 +237,6 @@ class Server:
     @property
     def getTorrentList(self):
         torrents = []
-
-
         try:
             _t = self.client.torrents()
 
@@ -246,7 +245,7 @@ class Server:
             # try relogin
             self.logger.log(str(type(e)))
             self.login()
-        finally:
+        else:
             for t in _t:
                 torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
         
