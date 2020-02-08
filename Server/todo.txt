@@ -1,2 +1,4 @@
+add verbose logging. try to find api exceptions
+add front end client
 tap dl to view file location
 push notifications
