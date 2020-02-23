@@ -21,8 +21,7 @@ def verifyPaths(*args):
 
 def main(args):           
     l = logger.logger(filename="server_log", user=config.get("Server", "name"))
-    s = Server(config, l)
-    s.start()
+    Server(config, l).start()
 
 
 if __name__ == "__main__":

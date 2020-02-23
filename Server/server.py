@@ -9,7 +9,8 @@ from ast import literal_eval
 from json import loads
 from multiprocessing import Process
 from urllib.parse import unquote
-from exceptions import PathNotFound
+from urllib3.exceptions import HTTPError
+from exceptions import PathNotFound, ServerRequestError
 import psutil
 from plexapi import myplex
 from qbittorrent import Client
@@ -18,11 +19,12 @@ from autoupdater import AutoUpdater
 
 class Server:
     MAGNET_URI = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
-    COMMAND_GET_DLS = "__listdownloaded__"
-    COMMAND_GET_TORRENTS = "__listtorrents__"
-    COMMAND_GET_TIME = "__gettime__"
+    
+    COMMAND_GET_DLS =         "__listdownloaded__"
+    COMMAND_GET_TORRENTS =    "__listtorrents__"
+    COMMAND_GET_TIME =        "__gettime__"
     COMMAND_GET_DIRECTORIES = "__getdirectories__"
-    COMMAND_POST_REFRESH = "__refreshplex__"
+    COMMAND_POST_REFRESH =    "__refreshplex__"
     
     def __str__(self):
         return \
@@ -79,10 +81,9 @@ class Server:
                     cnn, addr = s.accept()
                     threading.Thread(target=self.acceptClient, args=(cnn, addr)).start()
             
-            # occasional crash, restart the listen
+            # occasional crash, restart the listen?
             except ConnectionResetError as e:
                 self.logger.log(str(e))
-                # self.listen()
     
     def acceptClient(self, cnn, addr):
         try:
@@ -116,13 +117,12 @@ class Server:
                 else:
                     cnn.sendall(b"invalid request")
         except Exception as e:
-            cnn.sendall(b"an error has occurred")
-            self.logger.log(str(e))
-            
+            cnn.sendall(bytes(f"{str(e)} error has occurred. Please try again", encoding="utf-8"))
+            self.logger.log("SERVER ERROR - " + str(e))
 
     def downloadTorrent(self, uri, pathIndex):
-        def download():
-            self.client.download_from_link(uri, savepath=self.DEFAULT_DOWNLOADED_FILE_PATH)
+        def download():            
+            self.client.download_from_link(uri, savepath=self.DEFAULT_DOWNLOADED_FILE_PATH)               
 
             # return the extracted hash from the uri
             # hash appears before the name in the uri and is wrapped in identifiable tags
@@ -208,20 +208,26 @@ class Server:
                 self.logger.log("WRITING %s TO %s" % (xt["name"], new_save_path))
                 xt.set_location(new_save_path)        
 
-        torrent_hash = download()    
-        self.logger.log("TORRENT ADDED: %s" % uri)
-        self.client.sync()
-        
-        # use the extracted hash to fetch the just added torrent
-        t = next((x for x in self.client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
-        
-        if t is not None:
-            #kinda bugs me how this call is here
-            new_save_path = getAppropriateFilePath(t, int(pathIndex))
+        try:
+            torrent_hash = download()    
+            self.logger.log("TORRENT ADDED: %s" % uri)
+            self.client.sync()
+            
+            # use the extracted hash to fetch the just added torrent
+            t = next((x for x in self.client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
+            
+            if t is not None:
+                #kinda bugs me how this call is here
+                new_save_path = getAppropriateFilePath(t, int(pathIndex))
 
-            # override file path. 
-            overrideFilePath(torrent_hash)
-        return "%s\n%s" % (t["name"], new_save_path)
+                # override file path. 
+                overrideFilePath(torrent_hash)
+            return "%s\n%s" % (t["name"], new_save_path)
+        except HTTPError as e:
+            self.login()
+            raise ServerRequestError(e, self.downloadTorrent.__name__)
+        except Exception as e:
+            raise ServerRequestError(e, self.downloadTorrent.__name__)
 
     def updateLibrary(self):
         res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
@@ -240,11 +246,11 @@ class Server:
         try:
             _t = self.client.torrents()
 
-        except Exception as e:
+        except HTTPError as e:
             # 403 forbiddent exception (cant find exception type)
             # try relogin
-            self.logger.log(str(type(e)))
             self.login()
+            raise ServerRequestError(e, self.getTorrentList.__name__)
         else:
             for t in _t:
                 torrents.append(str(t["hash"]) + "~" + t["name"] + "~" + str(t["progress"]) + "~" + t["state"])
