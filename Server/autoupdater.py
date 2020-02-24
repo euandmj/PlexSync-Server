@@ -14,7 +14,7 @@ class AutoUpdater:
         return \
             "Scheduler for removing downloaded torrents from qbittorrent and consequently updating Plex"
 
-    def __init__(self, config, _logger, interval=30, ):
+    def __init__(self, config, _logger, interval=30):
         self.config = config
         self.interval = interval
         self.logger = _logger

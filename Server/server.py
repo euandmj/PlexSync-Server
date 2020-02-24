@@ -116,9 +116,12 @@ class Server:
                     cnn.sendall(resp)
                 else:
                     cnn.sendall(b"invalid request")
-        except Exception as e:
-            cnn.sendall(bytes(f"{str(e)} error has occurred. Please try again", encoding="utf-8"))
+        except ServerRequestError as e:
+            cnn.sendall(b"An error has occurred please try again.")
             self.logger.log("SERVER ERROR - " + str(e))
+        except Exception as e:
+            cnn.sendall(bytes(f"An unkown error has occurred. {str(e)}", encoding="utf-8"))
+            self.logger.log(f"SERVER ERROR - {type(e)} -  {str(e)}")
 
     def downloadTorrent(self, uri, pathIndex):
         def download():            
