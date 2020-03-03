@@ -265,6 +265,18 @@ class Server:
         # ? is a protected char why not
         return '?'.join(self.plex_directories)
 
+    def getDiskUsages(self):
+        from shutil import disk_usage
+        usages = [(str, float, int)]
+
+        for dir in self.plex_directories:
+            du = disk_usage(dir)
+            # disk usage
+            # (total, used, free)
+            usages.append((dir, (du[2] / du[0]) * 100, du[2]))
+
+        return usages
+
 
 if __name__ == "__main__":
     pass
