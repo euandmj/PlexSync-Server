@@ -49,8 +49,7 @@ class AutoUpdater:
             for torrent in self.client.torrents(filter="completed"):
                 self.logger.log("COMPLETED %s" % torrent["name"])
             self.client.delete(torrent["hash"])
-        except requests.exceptions.ConnectionError:
-            self.startQbt()
+            
         except requests.exceptions.HTTPError as e:
             self.logger.log(f"ERROR: {e}")
             self.login()
@@ -61,11 +60,3 @@ class AutoUpdater:
     def updateLibrary(self):
         res = self.myPlex.resource(self.config.get("Plex", "server")).connect()
         res.library.update()
-
-    def startQbt(self):
-        from os import startfile
-        # qbittorrent was likely killed by vpn. restart qbt
-        try:
-            startfile(self.config.get("General", "qbt_savepath"))
-        except WebAPIStart as e:
-            self.logger.log(e)

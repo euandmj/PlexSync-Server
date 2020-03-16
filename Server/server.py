@@ -70,7 +70,7 @@ class Server:
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((self.config.get("Server", "host"), self.config.getint("Server", "port")))
+            s.bind((socket.gethostname(), self.config.getint("Server", "port")))
 
             print("listening on %s:%i...." % (self.config.get("Server", "host"), self.config.getint("Server", "port")))
             self.logger.log("SERVER LISTENING")
@@ -214,7 +214,7 @@ class Server:
         try:
             torrent_hash = download()    
             self.logger.log("TORRENT ADDED: %s" % uri)
-            self.client.sync()
+            self.client.sync_main_data()
             
             # use the extracted hash to fetch the just added torrent
             t = next((x for x in self.client.torrents() if x["hash"].lower() == torrent_hash.lower()), None)
